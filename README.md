@@ -5,4 +5,3 @@
 - **3. Checkout this repository on server machine.**
 - **4. Copy `template.env` as `.env` file and fill environment variables values.**
 - **5. Run `docker compose up -d` in the repository root.**
-- 
