@@ -1,0 +1,140 @@
+version: '3.9'
+
+name: crm
+
+networks:
+  prod:
+    driver: bridge
+
+volumes:
+  db.data:
+  s3.data:
+  prometheus.data:
+  grafana.data:
+
+services:
+  crm.webapi:
+    image: vazovsk1y/crm.webapi:${CRM_WEBAPI_IMAGE_VERSION}
+    container_name: crm.webapi
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${CRM_WEBAPI_ASPNETCORE_ENVIRONMENT}
+      ASPNETCORE_HTTP_PORTS: ${CRM_WEBAPI_ASPNETCORE_HTTP_PORTS}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${CRM_WEBAPI_OTEL_EXPORTER_OTLP_ENDPOINT}
+      CRM_WEBAPI_DATABASE_CONNECTION_STRING: ${CRM_WEBAPI_DATABASE_CONNECTION_STRING}
+      CRM_WEBAPI_S3_TIMEOUT: ${CRM_WEBAPI_S3_TIMEOUT}
+      CRM_WEBAPI_S3_SERVICE_URL: ${CRM_WEBAPI_S3_SERVICE_URL}
+      CRM_WEBAPI_S3_SECRET_KEY: ${CRM_WEBAPI_S3_SECRET_KEY}
+      CRM_WEBAPI_S3_ACCESS_KEY: ${CRM_WEBAPI_S3_ACCESS_KEY}
+    depends_on:
+      - crm.logs
+      - crm.prometheus
+      - crm.tracing
+      - crm.database
+      - crm.s3
+      - crm.nginx
+    restart: no
+    networks:
+      - prod
+
+  crm.database:
+    image: postgres:${POSTGRES_IMAGE_VERSION}
+    container_name: crm.database
+    volumes:
+      - db.data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    restart: no
+    networks:
+      - prod
+        
+  crm.migrator:
+    image: vazovsk1y/crm.migrator:latest
+    container_name: crm.migrator
+    environment:
+      CRM_MIGRATOR_CONNECTION_STRING: ${CRM_MIGRATOR_CONNECTION_STRING}
+    restart: no
+    networks:
+      - prod
+    depends_on:
+      - crm.database
+
+  crm.prometheus:
+    container_name: crm.prometheus
+    image: prom/prometheus:${PROMETHEUS_IMAGE_VERSION}
+    volumes:
+      - ./prometheus-config.yml:/etc/prometheus/prometheus.yml
+      - prometheus.data:/prometheus
+    restart: no
+    networks:
+      - prod
+
+  crm.grafana:
+    image: grafana/grafana:${GRAFANA_IMAGE_VERSION}
+    container_name: crm.grafana
+    restart: no
+    environment:
+      GF_INSTALL_PLUGINS: ${GRAFANA_INSTALL_PLUGINS}
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_SECURITY_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_SECURITY_ADMIN_PASSWORD}
+    volumes:
+      - grafana.data:/var/lib/grafana
+    networks:
+      - prod
+
+  crm.tracing:
+    container_name: crm.tracing
+    image: jaegertracing/all-in-one:${JAEGER_IMAGE_VERSION}
+    networks:
+      - prod
+    restart: no
+
+  crm.logs:
+    container_name: crm.logs
+    image: grafana/loki:${LOKI_IMAGE_VERSION}
+    volumes:
+      - ./loki-config.yml:/etc/loki/config.yml
+    command: --config.file=/etc/loki/config.yml
+    networks:
+      - prod
+    restart: no
+    depends_on:
+      - crm.promtail
+
+  crm.promtail:
+    container_name: crm.promtail
+    image: grafana/promtail:${PROMTAIL_IMAGE_VERSION}
+    volumes:
+      - ./promtail-config.yml:/etc/promtail/config.yml
+    command: -config.file=/etc/promtail/config.yml
+    restart: no
+    networks:
+      - prod
+  
+  crm.s3:
+    image: chrislusf/seaweedfs:${SEAWEEDFS_IMAGE_VERSION}
+    container_name: crm.s3
+    entrypoint: ["/bin/sh", "-c", "./s3-startup.sh"]
+    environment:
+      SEAWEEDFS_S3_USERNAME: ${SEAWEEDFS_S3_USERNAME}
+      SEAWEEDFS_S3_ACCESS_KEY: ${SEAWEEDFS_S3_ACCESS_KEY}
+      SEAWEEDFS_S3_SECRET_KEY: ${SEAWEEDFS_S3_SECRET_KEY}
+    volumes:
+      - s3.data:/data
+      - ./s3-config.template.json:/etc/s3/config.template.json 
+      - ./apply-env.sh:/usr/local/bin/apply-env.sh
+    restart: no
+    networks:
+      - prod
+  
+  crm.nginx:
+    image: nginx:${NGINX_IMAGE_VERSION}
+    container_name: crm.nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./crm-webapi.nginx.conf:/etc/nginx/sites-enabled/crm-webapi.conf
+    restart: no
+    networks:
+      - prod

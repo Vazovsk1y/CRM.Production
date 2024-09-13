@@ -1,0 +1,4 @@
+﻿.idea/
+
+**/.env
+**/s3-config.json

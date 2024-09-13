@@ -1,0 +1,21 @@
+# Not for production use.
+
+scrape_configs:
+  - job_name: crm.webapi.scrape
+    scrape_interval: 30s
+    scrape_timeout: 3s
+    static_configs:
+      - targets:
+          - crm.webapi:5555
+        labels:
+          app: crm.webapi
+          
+  - job_name: crm.s3.scrape
+    scrape_interval: 30s
+    scrape_timeout: 3s
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - crm.s3:6666
+        labels:
+          app: crm.s3
