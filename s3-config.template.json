@@ -1,11 +1,11 @@
 ﻿{
   "identities": [
     {
-      "name": "${SEAWEEDFS_S3_USERNAME}",
+      "name": "YOUR_VALUE",
       "credentials": [
         {
-          "accessKey": "${SEAWEEDFS_S3_ACCESS_KEY}",
-          "secretKey": "${SEAWEEDFS_S3_SECRET_KEY}"
+          "accessKey": "YOUR_VALUE",
+          "secretKey": "YOUR_VALUE"
         }
       ],
       "actions": [
